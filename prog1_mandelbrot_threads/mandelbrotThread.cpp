@@ -35,6 +35,8 @@ void workerThreadStart(WorkerArgs * const args) {
     // to compute a part of the output image.  For example, in a
     // program that uses two threads, thread 0 could compute the top
     // half of the image and thread 1 could compute the bottom half.
+    double startTime = CycleTimer::currentSeconds();
+
     int rowsPerThread = args->height / args->numThreads;
     int startRow = args->threadId * rowsPerThread;
     int numRows = rowsPerThread;
@@ -55,6 +57,12 @@ void workerThreadStart(WorkerArgs * const args) {
         args->maxIterations,
         args->output
     );
+
+    double endTime = CycleTimer::currentSeconds();
+
+    printf("Thread %d: %.3f ms\n",
+           args->threadId,
+           (endTime - startTime) * 1000.0);
 }
 
 //

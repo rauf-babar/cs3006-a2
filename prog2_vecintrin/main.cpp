@@ -249,7 +249,57 @@ void clampedExpVector(float* values, int* exponents, float* output, int N) {
   // Your solution should work for any value of
   // N and VECTOR_WIDTH, not just when VECTOR_WIDTH divides N
   //
-  
+
+  __cs149_vec_float vecOne = _cs149_vset_float(1.f);
+  __cs149_vec_float vecClamp = _cs149_vset_float(9.999999f);
+
+  __cs149_vec_int vecZeroInt = _cs149_vset_int(0);
+  __cs149_vec_int vecOneInt = _cs149_vset_int(1);
+
+  for (int i = 0; i < N; i += VECTOR_WIDTH) {
+
+    int width = VECTOR_WIDTH;
+    if (i + VECTOR_WIDTH > N) {
+      width = N - i;
+    }
+
+    __cs149_mask maskAll = _cs149_init_ones(width);
+
+    __cs149_vec_float x;
+    __cs149_vec_int y;
+
+    _cs149_vload_float(x, values + i, maskAll);
+    _cs149_vload_int(y, exponents + i, maskAll);
+
+    __cs149_vec_float result = vecOne;
+
+    __cs149_mask maskPositive;
+    _cs149_vgt_int(maskPositive, y, vecZeroInt, maskAll);
+
+    _cs149_vmove_float(result, x, maskPositive);
+
+    __cs149_vec_int count;
+    _cs149_vsub_int(count, y, vecOneInt, maskAll);
+
+    __cs149_mask maskLoop;
+    _cs149_vgt_int(maskLoop, count, vecZeroInt, maskAll);
+
+    while (_cs149_cntbits(maskLoop) > 0) {
+
+      _cs149_vmult_float(result, result, x, maskLoop);
+
+      _cs149_vsub_int(count, count, vecOneInt, maskLoop);
+
+      _cs149_vgt_int(maskLoop, count, vecZeroInt, maskAll);
+    }
+
+    __cs149_mask maskClamp;
+    _cs149_vgt_float(maskClamp, result, vecClamp, maskAll);
+
+    _cs149_vmove_float(result, vecClamp, maskClamp);
+
+    _cs149_vstore_float(output + i, result, maskAll);
+  }
 }
 
 // returns the sum of all elements in values

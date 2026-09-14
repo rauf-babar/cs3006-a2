@@ -22,6 +22,7 @@ int main() {
 
     const unsigned int N = 20 * 1000 * 1000;
     const float initialGuess = 1.0f;
+    const int inputCase = 0;
 
     float* values = new float[N];
     float* output = new float[N];
@@ -32,11 +33,14 @@ int main() {
         // TODO: CS149 students.  Attempt to change the values in the
         // array here to meet the instructions in the handout: we want
         // to you generate best and worse-case speedups
-        
-        // starter code populates array with random input values
-        values[i] = .001f + 2.998f * static_cast<float>(rand()) / RAND_MAX;
-    }
 
+        if (inputCase == 0)
+            values[i] = 2.999f;
+        else if (i % 8 == 0)
+            values[i] = 2.999f;
+        else
+            values[i] = 1.0f;
+    }
     // generate a gold version to check results
     for (unsigned int i=0; i<N; i++)
         gold[i] = sqrt(values[i]);

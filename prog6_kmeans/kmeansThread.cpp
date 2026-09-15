@@ -65,27 +65,24 @@ double dist(double *x, double *y, int nDim) {
  * Assigns each data point to its "closest" cluster centroid.
  */
 void computeAssignments(WorkerArgs *const args) {
-  double *minDist = new double[args->M];
-  
-  // Initialize arrays
-  for (int m =0; m < args->M; m++) {
-    minDist[m] = 1e30;
-    args->clusterAssignments[m] = -1;
-  }
 
-  // Assign datapoints to closest centroids
-  for (int k = args->start; k < args->end; k++) {
-    for (int m = 0; m < args->M; m++) {
+  // Assign each datapoint in this worker's range to its closest centroid
+  for (int m = args->start; m < args->end; m++) {
+    double minDist = 1e30;
+    int bestAssignment = -1;
+
+    for (int k = 0; k < args->K; k++) {
       double d = dist(&args->data[m * args->N],
                       &args->clusterCentroids[k * args->N], args->N);
-      if (d < minDist[m]) {
-        minDist[m] = d;
-        args->clusterAssignments[m] = k;
+
+      if (d < minDist) {
+        minDist = d;
+        bestAssignment = k;
       }
     }
-  }
 
-  delete[] minDist;
+    args->clusterAssignments[m] = bestAssignment;
+  }
 }
 
 /**
@@ -207,18 +204,33 @@ void kMeansThread(double *data, double *clusterCentroids, int *clusterAssignment
       prevCost[k] = currCost[k];
     }
 
-    // Setup args struct
+    double start = CycleTimer::currentSeconds();
+
+    const int numThreads = 12;
+    thread workers[numThreads];
+    WorkerArgs workerArgs[numThreads];
+
+    for (int t = 0; t < numThreads; t++) {
+      workerArgs[t] = args;
+      workerArgs[t].start = t * M / numThreads;
+      workerArgs[t].end = (t + 1) * M / numThreads;
+
+      workers[t] = thread(computeAssignments, &workerArgs[t]);
+    }
+
+    for (int t = 0; t < numThreads; t++) {
+      workers[t].join();
+    }
+
+    assignmentTime += CycleTimer::currentSeconds() - start;
+
+    // Setup args struct for centroid and cost computation
     args.start = 0;
     args.end = K;
-
-    double start = CycleTimer::currentSeconds();
-    computeAssignments(&args);
-    assignmentTime += CycleTimer::currentSeconds() - start;
 
     start = CycleTimer::currentSeconds();
     computeCentroids(&args);
     centroidTime += CycleTimer::currentSeconds() - start;
-
     start = CycleTimer::currentSeconds();
     computeCost(&args);
     costTime += CycleTimer::currentSeconds() - start;

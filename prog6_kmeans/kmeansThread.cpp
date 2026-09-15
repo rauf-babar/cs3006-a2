@@ -126,26 +126,18 @@ void computeCentroids(WorkerArgs *const args) {
  * Computes the per-cluster cost. Used to check if the algorithm has converged.
  */
 void computeCost(WorkerArgs *const args) {
-  double *accum = new double[args->K];
 
-  // Zero things out
+  // Each worker computes private per-cluster costs
   for (int k = 0; k < args->K; k++) {
-    accum[k] = 0.0;
+    args->currCost[k] = 0.0;
   }
 
-  // Sum cost for all data points assigned to centroid
-  for (int m = 0; m < args->M; m++) {
+  for (int m = args->start; m < args->end; m++) {
     int k = args->clusterAssignments[m];
-    accum[k] += dist(&args->data[m * args->N],
-                     &args->clusterCentroids[k * args->N], args->N);
+    args->currCost[k] +=
+        dist(&args->data[m * args->N],
+             &args->clusterCentroids[k * args->N], args->N);
   }
-
-  // Update costs
-  for (int k = args->start; k < args->end; k++) {
-    args->currCost[k] = accum[k];
-  }
-
-  delete[] accum;
 }
 
 /**
@@ -232,9 +224,34 @@ void kMeansThread(double *data, double *clusterCentroids, int *clusterAssignment
     computeCentroids(&args);
     centroidTime += CycleTimer::currentSeconds() - start;
     start = CycleTimer::currentSeconds();
-    computeCost(&args);
-    costTime += CycleTimer::currentSeconds() - start;
 
+    thread costWorkers[numThreads];
+    WorkerArgs costWorkerArgs[numThreads];
+    double *localCosts = new double[numThreads * K];
+
+    for (int t = 0; t < numThreads; t++) {
+      costWorkerArgs[t] = args;
+      costWorkerArgs[t].start = t * M / numThreads;
+      costWorkerArgs[t].end = (t + 1) * M / numThreads;
+      costWorkerArgs[t].currCost = &localCosts[t * K];
+
+      costWorkers[t] = thread(computeCost, &costWorkerArgs[t]);
+    }
+
+    for (int t = 0; t < numThreads; t++) {
+      costWorkers[t].join();
+    }
+
+    for (int k = 0; k < K; k++) {
+      currCost[k] = 0.0;
+      for (int t = 0; t < numThreads; t++) {
+        currCost[k] += localCosts[t * K + k];
+      }
+    }
+
+    delete[] localCosts;
+
+    costTime += CycleTimer::currentSeconds() - start;
     iter++;
   }
 
